@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Three-Step Reading Trainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500&display=swap">
+<style>
+/* Layout: a quiet reading surface. Thin session bar on top, one line of large text in the middle, low-key helper controls at the bottom, everything else in a slide-in Helper panel. */
+:root{
+  --bg:#FBF5E4; --paper:#FFFFFF; --fg:#000000; --muted:#6E6A60; --faint:color-mix(in srgb,var(--bg) 70%,#000); --line:color-mix(in srgb,var(--bg) 85%,#000);
+  --accent:#3F6E8C; --bar:#8FB3C9; --barEnd:#D9A45B; --card:color-mix(in srgb,var(--bg) 78%,#7A6A48); color-scheme:light; --flag:#A04A6E;
+  --f:"Lexend",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f);font-size:16px;line-height:1.5;margin:0}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.app{height:100%;display:flex;flex-direction:column}
+.bar{height:5px;background:var(--line);flex:none}
+.bar i{display:block;height:100%;width:0;background:var(--bar);transition:width 1s linear,background .6s}
+.bar.done i{background:var(--barEnd)}
+.top{display:flex;justify-content:space-between;align-items:center;padding-inline:16px;padding-block:10px;color:var(--muted);font-size:.85rem;flex:none}
+.ghost{background:none;border:0;color:var(--muted);padding:6px 8px;border-radius:8px;position:relative}
+.ghost:hover{color:var(--fg)}
+.stepsel{appearance:none;-webkit-appearance:none;border:1px solid var(--line);background:var(--paper) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236E6A60' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 12px center;border-radius:999px;padding:5px 32px 5px 14px;font-size:.88rem;color:var(--fg);cursor:pointer;max-width:62vw}
+.pills{display:flex;gap:6px;align-items:center}
+.pill{border:1px solid var(--line);background:none;color:var(--muted);border-radius:999px;padding:4px 12px;font-size:.82rem;min-width:30px}
+.pill:hover{color:var(--fg)}
+.pill[aria-pressed="true"]{color:var(--accent);border-color:var(--accent)}
+.pill.cog{position:relative;display:inline-flex;align-items:center;justify-content:center;padding:5px 8px}
+.pill.info{font-style:italic;font-weight:500;padding:4px 11px;font-family:Georgia,serif}
+.lightbox{position:fixed;inset:0;background:color-mix(in srgb,var(--fg) 30%,transparent);z-index:9;display:flex;align-items:center;justify-content:center;padding:16px}
+.lb{background:var(--paper);border-radius:16px;max-width:620px;width:100%;max-height:88vh;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:18px;font-size:.95rem}
+.lb h2{font-size:1.2rem;font-weight:500;margin:0}
+.lb h3{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:500;margin:0 0 6px}
+.lb ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.lb .say{border-left:2px solid var(--accent);padding-left:12px;font-style:italic}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tabs button{border:1px solid var(--line);background:none;border-radius:999px;padding:5px 12px;font-size:.85rem;color:var(--muted)}
+.tabs button[aria-pressed="true"]{color:var(--fg);border-color:var(--faint);background:var(--bg)}
+.dot{position:absolute;top:6px;right:0;width:7px;height:7px;border-radius:50%;background:var(--flag)}
+
+.reader{flex:1;overflow-y:auto;padding-inline:24px;padding-block:6vh 45vh;position:relative;min-height:0}
+.page{position:relative;max-width:32em;margin:0 auto;overflow:hidden;font-size:var(--ts,2.2rem)}
+.passage{line-height:1.9;letter-spacing:.04em;word-spacing:.25em;overflow-wrap:anywhere}
+.passage p{margin:0 0 .8em}
+.passage p:last-child{margin-bottom:0}
+.passage .w{white-space:nowrap;cursor:default}
+.lower{position:absolute;left:0;right:0;bottom:0;top:100%;background:var(--card);z-index:1;transition:top .35s ease}
+.spacer{height:10.5rem}
+.stopchart{position:absolute;left:0;right:0;top:0;display:grid;grid-template-columns:4fr 3fr 1.3fr;gap:0;padding-top:.9rem;font-size:1rem;color:#2A2233;text-align:center}
+.sc-col{display:flex;flex-direction:column;gap:6px;padding-inline:8px;border-left:1px solid color-mix(in srgb,var(--card) 75%,#000);min-width:0}
+.sc-col:first-child{border-left:0}
+.sc-h{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;font-weight:500;color:#4B2E73}
+.sc-row{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px}
+.sc-i{display:flex;flex-direction:column;align-items:center;min-width:3.2em;max-width:7em}
+.sc-s{font-family:Georgia,"Times New Roman",serif;font-weight:700;font-size:2.4rem;line-height:1.1;color:#4B2E73}
+.sc-s.sc-sm{font-size:1.5rem;line-height:1.75;white-space:nowrap}
+.sc-n{font-size:.7rem;line-height:1.25;color:#3d3547}
+@media (max-width:560px){.stopchart{grid-template-columns:1fr 1fr 1fr}.sc-n{display:none}.sc-i{min-width:1.4em}.sc-row{gap:2px 10px}.spacer{height:8rem}}
+.peek{position:absolute;z-index:4;background:var(--bg);border-radius:6px;box-shadow:0 0 0 2px #4B2E73;padding:0 .12em;margin-left:-.12em;line-height:inherit;letter-spacing:.04em;white-space:nowrap;display:flex;align-items:center}
+.chips{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;max-width:44rem}
+.chips .lbl{width:100%;text-align:center;color:var(--muted);font-size:.82rem}
+.chips button{border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:4px 10px;font-size:.9rem;color:var(--fg)}
+.chips button.sugg{border-color:#4B2E73;border-style:dashed}
+.chips button[aria-pressed="true"]{background:#4B2E73;color:#fff;border-color:#4B2E73}
+.slider{position:absolute;left:100%;top:0;width:100%;height:0;background:var(--card);z-index:2;border-radius:3px;box-shadow:-3px 0 0 color-mix(in srgb,var(--card) 70%,#000),0 3px 8px rgba(0,0,0,.12)}
+.hand{position:absolute;background:var(--card);z-index:3;border-radius:5px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
+.line{width:100%;font-size:clamp(2rem,5.5vw,3.6rem);letter-spacing:.04em;word-spacing:.25em;line-height:1.7;max-width:22em;text-align:left;overflow-wrap:anywhere}
+.w{white-space:nowrap}
+.w.prev{color:var(--fg)}
+.swatches{display:flex;flex-wrap:wrap;gap:8px}
+.swatches button{width:38px;height:38px;border-radius:50%;border:1px solid rgba(0,0,0,.18);padding:0}
+.swatches button[aria-pressed="true"]{outline:2px solid #000;outline-offset:2px}
+.passage .w.told{text-decoration:underline dotted var(--faint);text-underline-offset:.25em}
+.w.flagged{text-decoration:underline wavy var(--flag);text-underline-offset:.25em;text-decoration-thickness:2px}
+.sw{position:relative;display:inline-block}
+.sw .c{position:absolute;inset:-.08em -.06em;background:var(--card);border-radius:4px;transform-origin:right center;animation:sweep var(--d) linear var(--delay) forwards}
+@keyframes sweep{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+.sp{position:relative;display:inline-block}
+.c1{position:absolute;top:-.08em;bottom:-.08em;right:-.06em;left:0;background:var(--card);border-radius:4px}
+.fut{background:var(--card);color:transparent;border-radius:4px;-webkit-box-decoration-break:clone;box-decoration-break:clone;padding:0 .06em}
+.card{display:inline-block;vertical-align:middle;width:2.4em;height:1.1em;background:var(--card);border-radius:4px}
+.covered{display:inline-block;background:var(--card);color:transparent;border-radius:4px}
+.end{color:var(--muted);font-size:1.4rem}
+
+.ctl{flex:none;padding-inline:16px;padding-block:10px 18px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.hint{color:var(--muted);font-size:1rem;min-height:1.5em;text-align:center}
+.hint b{color:var(--fg);font-weight:500}
+.btns{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+.b{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:8px 18px;color:var(--muted);font-size:.92rem}
+.b:hover{color:var(--fg)}
+.b.main{color:var(--fg);border-color:var(--faint)}
+.b.on{color:var(--accent);border-color:var(--accent)}
+.k{font-size:.7rem;opacity:.7;margin-left:8px}
+
+.shade{position:fixed;inset:0;background:color-mix(in srgb,var(--fg) 18%,transparent);z-index:5}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(400px,100%);background:var(--paper);border-left:1px solid var(--line);z-index:6;overflow-y:auto;padding-inline:20px;padding-block:calc(18px + env(safe-area-inset-top,0px)) calc(24px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:20px;font-size:.93rem}
+.drawer h2{font-size:1.15rem;font-weight:500;margin:0}
+.drawer h3{font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:500;margin:0 0 6px}
+.drawer ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.drawer .say{border-left:2px solid var(--accent);padding-left:12px;font-style:italic}
+.dhead{display:flex;justify-content:space-between;align-items:center}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{flex:1;border:0;background:none;padding:8px 6px;font-size:.85rem;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--bg);color:var(--fg);font-weight:500}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{display:flex;justify-content:space-between;font-size:.88rem}
+.field output{color:var(--muted);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.words{display:flex;flex-wrap:wrap;gap:6px}
+.words span{border:1px solid var(--flag);color:var(--flag);border-radius:6px;padding:1px 4px 1px 8px;display:inline-flex;align-items:center;gap:2px}
+.words span button{border:0;background:none;color:inherit;padding:0 4px}
+.muted{color:var(--muted)}
+.linkish{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+
+.overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:16px;z-index:8}
+.modal{max-width:520px;width:100%;display:flex;flex-direction:column;gap:16px;text-align:center;align-items:center}
+.slow{font-size:clamp(1.8rem,5vw,2.6rem);letter-spacing:.08em}
+.modal.left{text-align:left;align-items:stretch}
+textarea{width:100%;min-height:240px;font-size:1rem;line-height:1.6;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--paper);resize:vertical}
+.cover{position:fixed;inset:0;background:var(--card);display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;color:var(--muted);z-index:4}
+</style>
+</head>
+<body>
+
+
+<div class="app">
+  <div class="bar" id="bar" role="progressbar" aria-label="Session time" aria-valuemin="0" aria-valuemax="100"><i id="fill"></i></div>
+  <div class="top">
+    <select id="stepSel" class="stepsel" aria-label="Reading exercise">
+      <option value="1">1 · Spell-Reading</option>
+      <option value="2">2 · Sweep-Sweep-Spell</option>
+      <option value="3">3 · Picture-at-Punctuation</option>
+    </select>
+    <span class="pills">
+      <button class="pill cog" id="voiceBtn" aria-pressed="false" aria-label="Voice off" title="Voice off (V)"></button>
+      <button class="pill cog" id="micBtn" aria-pressed="false" aria-label="Listening off" title="Listen for the reader (L)"></button>
+      <button class="pill info" id="infoBtn" aria-label="Instructions" title="Instructions">i</button>
+      <button class="pill cog" id="helperBtn" aria-expanded="false" aria-label="Settings" title="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="dot" id="dot" hidden></span></button>
+    </span>
+  </div>
+  <main class="reader" id="reader">
+    <div class="page" id="page">
+      <div class="passage" id="passage"></div>
+      <div class="spacer" aria-hidden="true"></div>
+      <div class="lower" id="lower" aria-hidden="true">
+        <div class="stopchart" id="stopChart" hidden>
+          <div class="sc-col"><div class="sc-h">Complete stop</div><div class="sc-row">
+            <div class="sc-i"><span class="sc-s">.</span><span class="sc-n">full stop</span></div>
+            <div class="sc-i"><span class="sc-s">!</span><span class="sc-n">exclamation mark</span></div>
+            <div class="sc-i"><span class="sc-s">?</span><span class="sc-n">question mark</span></div>
+            <div class="sc-i"><span class="sc-s">:</span><span class="sc-n">colon</span></div>
+          </div></div>
+          <div class="sc-col"><div class="sc-h">Short stop</div><div class="sc-row">
+            <div class="sc-i"><span class="sc-s">;</span><span class="sc-n">semicolon</span></div>
+            <div class="sc-i"><span class="sc-s">—</span><span class="sc-n">dash</span></div>
+            <div class="sc-i"><span class="sc-s sc-sm">( ) [ ]</span><span class="sc-n">brackets, used instead of dashes</span></div>
+          </div></div>
+          <div class="sc-col"><div class="sc-h">Pause</div><div class="sc-row">
+            <div class="sc-i"><span class="sc-s">,</span><span class="sc-n">comma</span></div>
+          </div></div>
+        </div>
+      </div>
+      <div class="slider" id="slider" aria-hidden="true"></div>
+      <div id="hands" aria-hidden="true"></div>
+    </div>
+  </main>
+  <div class="cover" id="cover" hidden><span>Covered</span><button class="b main" id="uncover">Carry on<span class="k">C</span></button></div>
+  <div class="ctl">
+    <div class="hint" id="hint"></div>
+    <div class="btns" id="btns"></div>
+    <div class="chips" id="chips" hidden></div>
+  </div>
+</div>
+
+<div class="shade" id="shade" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-label="Settings">
+  <div class="dhead"><h2>Settings</h2><button class="ghost" id="closeDrawer">Close</button></div>
+  <div>
+    <h3>Page colour</h3>
+    <div class="swatches" id="swatches" role="group" aria-label="Page colour"></div>
+  </div>
+  <div class="field">
+    <label for="mins">Session length <output id="minsOut"></output></label>
+    <input type="range" id="mins" min="5" max="10" step="1">
+  </div>
+  <div class="field">
+    <label for="tsize">Text size <output id="tsizeOut"></output></label>
+    <input type="range" id="tsize" min="1.4" max="3.4" step="0.1">
+  </div>
+  <div class="field" id="swaitField">
+    <label for="swait">Wait before spelling <output id="swaitOut"></output></label>
+    <input type="range" id="swait" min="1" max="4" step="0.5">
+  </div>
+  <div class="field" id="paceField">
+    <label for="pace">Spelling pace <output id="paceOut"></output></label>
+    <input type="range" id="pace" min="0.5" max="2" step="0.1">
+  </div>
+  <div class="field" id="speedField">
+    <label for="speed">Sweep speed <output id="speedOut"></output></label>
+    <input type="range" id="speed" min="0.3" max="1.2" step="0.05">
+  </div>
+  <div id="revealField">
+    <h3>Reveal</h3>
+    <div class="seg" id="modeSeg"><button data-mode="word">One word</button><button data-mode="line">One line</button></div>
+  </div>
+  <div id="coverField">
+    <h3>At a STOP sign</h3>
+    <div class="seg" id="coverSeg"><button data-cov="1">Cover the words</button><button data-cov="0">Leave them showing</button></div>
+  </div>
+  <div class="row"><button class="linkish" id="changeText">Change the reading text</button></div>
+  <div>
+    <h3>Words for Symbol Mastery</h3>
+    <div id="wordList"></div>
+  </div>
+  <div class="field">
+    <label for="voiceSel">Voice</label>
+    <div class="btns" style="justify-content:flex-start;flex-wrap:nowrap">
+      <select id="voiceSel" class="stepsel" style="flex:1;min-width:0;max-width:none"></select>
+      <button class="b" id="voiceTest">Test</button>
+    </div>
+  </div>
+  <div class="field">
+    <label for="lwin">Wait for the reader <output id="lwinOut"></output></label>
+    <input type="range" id="lwin" min="0.2" max="1" step="0.1">
+    <div class="muted" style="font-size:.82rem">With listening on, the app says the word only if it hasn't heard the reader say it within this time after the word is revealed.</div>
+  </div>
+  <div class="field">
+    <label for="vdelay">Voice delay (listening off) <output id="vdelayOut"></output></label>
+    <input type="range" id="vdelay" min="0.1" max="1" step="0.1">
+  </div>
+</aside>
+
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-labelledby="lbTitle">
+  <div class="lb">
+    <div class="dhead"><h2 id="lbTitle">Instructions</h2><button class="ghost" id="lbClose">Close</button></div>
+    <div class="tabs" id="lbTabs"><button data-t="0">Overview</button><button data-t="1">1 · Spell-Reading</button><button data-t="2">2 · Sweep-Sweep-Spell</button><button data-t="3">3 · Picture</button></div>
+    <div id="lbBody" style="display:flex;flex-direction:column;gap:18px"></div>
+  </div>
+</div>
+
+<div class="overlay" id="startOverlay" hidden>
+  <div class="modal">
+    <div class="slow">Go s-l-o-w and easy.</div>
+    <div class="muted">Check orientation. No sounding out.</div>
+    <button class="b main" id="startGo">Start<span class="k">Enter</span></button>
+  </div>
+</div>
+
+<div class="overlay" id="textOverlay" hidden>
+  <div class="modal left">
+    <label for="textInput" style="font-weight:500">Reading text</label>
+    <textarea id="textInput"></textarea>
+    <div class="btns" style="justify-content:flex-start">
+      <button class="b main" id="textUse">Use this text</button>
+      <button class="b" id="textCancel">Cancel</button>
+      <button class="b" id="textSample">Load sample</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SAMPLE = `Mia walked down to the river after lunch. The water was cold, clear and quick. A small brown dog ran along the bank, barking at the ducks!
+
+"Come back," Mia called, "the ducks want to swim in peace." The dog stopped, looked at her, and sat down in the long grass.
+
+Long ago, a wooden bridge crossed the river here. Now only three old posts stand in the water; birds like to rest on them.`;
+
+const TOLD_LIMIT = 4;
+const COLOURS=[["Cream","#FBF5E4"],["Butter","#FBF3C8"],["Peach","#FCE6D6"],["Rose","#F9E1E4"],["Lilac","#ECE4F5"],["Sky","#E1EDF8"],["Aqua","#DDF2EF"],["Mint","#E3F3DF"],["Stone","#EEEDE8"]];
+const STEP_NAMES = {1:"Spell-Reading",2:"Sweep-Sweep-Spell",3:"Picture-at-Punctuation"};
+const GUIDE = {
+ 1:{say:"Spell the word as the letters are revealed. Then I will say the word, and you say it back while looking at it. If you know the word once you've spelled it, say it without waiting for me.",
+    keys:["→: reveal the next letter (the space after a word comes with its last letter)","←: go back a letter","↑: say the word now"],
+    watch:["A letter swapped, missed or changed","Head moving closer to the page","Hesitation, speeding up, slowing down, or a flat voice","Rubbing the neck, fidgeting, frowning"],
+    next:"Move on when the student recognises most words on their own."},
+ 2:{say:"Let your eyes sweep over the word. If it doesn't just come out of your mouth, sweep it again. If it still doesn't, spell it. If you still don't know it, I'll say it and you repeat it while you look at it. If you recognise it while spelling, finish spelling before you say it.",
+    keys:["→: next word (it sweeps in)","←: sweep again. The word is covered, then after half a second swept again 20% slower. Press ← again to spell it.","↑: say the word (counts as a word you had to say)","With listening on, the second sweep starts by itself if the reader hasn't said the word within 1 second of the first sweep ending.","If the word still isn't said after the second sweep, spelling starts by itself after the 'Wait before spelling' time (2 seconds to start with), one letter at a time at the spelling pace. → shows the next letter sooner.","In line mode, tap any word you had to say"],
+    watch:["At the first sign of disorientation or an error, cover the text (C) and ask the student to check orientation or alignment."],
+    next:`Only words you had to say ${TOLD_LIMIT} times are listed for Symbol Mastery. Names are not counted. Move on when the student recognises almost every word at their level.`},
+ 3:{say:"Now we add meaning. Punctuation means 'picture the meaning'. When you reach a STOP sign, stop and make a picture in your mind of what you just read.",
+    keys:["→: next word; at a STOP sign, → covers the words (or leaves them showing, if you choose that in the settings)","←: sweep again; press again to spell it","↑: say the word","F: switch the question to 'What do you feel?'","W: if the picture isn't complete or accurate, point out the missing word. It is shown on its own and you ask: 'How is this word in your picture?' With listening on, words not heard in the description are suggested.","Tap a word that has no meaning for the student to add it to the list"],
+    watch:["Unknown words: explain them or look them up together.","Trigger words may cause disorientation."],
+    next:"The job is done when the student starts reading for pleasure."}
+};
+const PURPOSE={1:["Train left-to-right eye movement","Recognise groups of letters as words","Understanding is not the goal yet"],
+ 2:["Continue left-to-right eye movement","Continue word recognition","Understanding is still not the goal"],
+ 3:["Understanding what is read","Goal: full comprehension"]};
+const VOICE_NOTE={1:"With Voice on, the app says the word about a second after the last letter appears. The student repeats it while looking at the word.",
+ 2:"With Voice on, pressing 'Say the word' (↑) speaks the word after the delay and counts it as a word you had to say.",
+ 3:"With Voice on, 'Say the word' (↑) speaks it after the delay and counts it."};
+const CHECKS = ["The room is well lit and comfortable","Sit across from the student","Keep sessions short and praise every improvement"];
+
+/* ---------- storage (per-browser convenience) ---------- */
+const STORE_KEY="three-step-reading-v2";
+function loadStore(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY))||{}; }catch(e){ return {}; } }
+function saveStore(){ try{ localStorage.setItem(STORE_KEY,JSON.stringify({counts:S.counts,manual:[...S.manual],hidden:[...S.hiddenWords],mins:S.mins,speed:S.speed,coverPic:S.coverPic,swait:S.swait,pace:S.pace,listen:S.listen,lwin:S.lwin,voiceName:S.voiceName,tsize:S.tsize,colour:S.colour,voice:S.voice,vdelay:S.vdelay,step:S.step,mode:S.mode,raw:S.raw})); }catch(e){} }
+
+const st=loadStore();
+const S={
+  step:st.step||1, mode:st.mode||"word", coverPic:st.coverPic!==false, check:-1, chips:false, desc:[], swait:st.swait||2, pace:st.pace||1, spell:false, backs:0, resweep:0, listen:!!st.listen, lwin:Math.min(1,Math.max(.2,st.lwin||.8)), voiceName:st.voiceName||"", tsize:st.tsize||2.2, colour:st.colour||"#FBF5E4", voice:!!st.voice, vdelay:Math.min(1,Math.max(0.1,st.vdelay||1)), mins:st.mins||8, speed:st.speed||0.6, raw:st.raw||SAMPLE,
+  counts:st.counts||{}, manual:new Set(st.manual||[]), hiddenWords:new Set(st.hidden||[]),
+  toks:[], lines:[], proper:new Set(), pos:0, k:0, chunkStart:0, phase:"read", ask:"see",
+  toldHere:new Set(), sweepAt:0, covered:false, running:false, elapsed:0, lastTick:0
+};
+
+/* ---------- text ---------- */
+const key=w=>w.toLowerCase().replace(/[^\p{L}\p{N}'’-]/gu,"").replace(/^['’-]+|['’-]+$/g,"");
+function tokenize(txt){
+  const out=[];
+  txt.replace(/\r/g,"").split(/\n+/).map(p=>p.trim()).filter(Boolean).forEach(p=>{
+    const ws=p.split(/\s+/).filter(Boolean);
+    ws.forEach((w,i)=>{
+      const nxt=ws[i+1]||"";
+      const stop=/[.,!?:;)\]—–]["”'’]*$/.test(w)||/^[-—–]$/.test(nxt)||/^[(\[]/.test(nxt);
+      const start = i===0 || /[.!?]["”'’)]*$/.test(ws[i-1]);
+      out.push({w,stop,para:i===ws.length-1,start,key:key(w)});
+    });
+  });
+  return out;
+}
+function findProper(toks){
+  const lower=new Set(), capMid=new Set();
+  toks.forEach(t=>{
+    const bare=t.w.replace(/^[^\p{L}]+/u,"");
+    if(!t.key) return;
+    if(/^\p{Ll}/u.test(bare)) lower.add(t.key);
+    else if(/^\p{Lu}/u.test(bare) && !t.start) capMid.add(t.key);
+  });
+  const p=new Set([...capMid].filter(k=>!lower.has(k))); p.add("i"); return p;
+}
+function buildLines(){
+  const L=[]; let i=0; const n=S.toks.length;
+  while(i<n){ const s=i; while(i<n){ const t=S.toks[i]; i++; if(t.para||/[.!?]["”'’)]*$/.test(t.w)||i-s>=7) break; } L.push([s,i]); }
+  S.lines=L;
+}
+const lineOf=p=>S.lines.findIndex(([s,e])=>p>=s&&p<e);
+function load(txt){ S.raw=txt; S.toks=tokenize(txt); S.proper=findProper(S.toks); reset(); saveStore(); buildPassage(); }
+function reset(){ S.check=-1; S.chips=false; S.spell=false; S.backs=0; S.pos=0; S.k=0; S.chunkStart=0; S.phase="read"; S.ask="see"; S.toldHere.clear(); S.sweepAt=performance.now(); }
+
+/* ---------- counting ---------- */
+function isProper(k){ return S.proper.has(k); }
+function toggleTold(i){
+  const t=S.toks[i]; if(!t||!t.key) return;
+  if(S.toldHere.has(i)){ S.toldHere.delete(i); S.counts[t.key]=Math.max(0,(S.counts[t.key]||1)-1); }
+  else { S.toldHere.add(i); S.counts[t.key]=(S.counts[t.key]||0)+1; }
+  saveStore();
+}
+function masteryList(){
+  const fromCounts=Object.entries(S.counts).filter(([k,c])=>c>=TOLD_LIMIT&&!isProper(k)).map(([k])=>k);
+  return [...new Set([...fromCounts,...S.manual])].filter(k=>!S.hiddenWords.has(k)).sort();
+}
+
+/* ---------- render ---------- */
+const $=id=>document.getElementById(id);
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function letters(w){ return Math.max(1,(w.match(/[\p{L}\p{N}]/gu)||[]).length); }
+
+/* ---------- static passage + two cards ---------- */
+let WE=[], M=null, lastKey="", lastLine=-1, pend=null;
+function buildPassage(){
+  const T=S.toks; let h="<p>";
+  T.forEach((t,i)=>{ h+=`<span class="w" data-i="${i}">${[...t.w].map(c=>`<span class="lt">${esc(c)}</span>`).join("")}</span>`+(t.para&&i<T.length-1?"</p><p>":" "); });
+  $("passage").innerHTML = T.length ? h+"</p>" : `<p class="end">Add a reading text in Settings.</p>`;
+  WE=[...$("passage").querySelectorAll(".w")];
+  measure(); lastKey=""; lastLine=-1;
+}
+function measure(){
+  const page=$("page"); page.style.setProperty("--ts",S.tsize+"rem");
+  const lh=parseFloat(getComputedStyle($("passage")).lineHeight);
+  const words=WE.map(el=>({l:el.offsetLeft,t:el.offsetTop,w:el.offsetWidth,h:el.offsetHeight,lt:[...el.querySelectorAll(".lt")].map(x=>x.offsetLeft)}));
+  const tops=[], idx=[];
+  words.forEach(o=>{ let L=tops.findIndex(t=>Math.abs(t-o.t)<o.h/2); if(L<0){ tops.push(o.t); L=tops.length-1; } idx.push(L); });
+  const bots=tops.map((t,L)=>Math.max(...words.filter((o,i)=>idx[i]===L).map(o=>o.t+o.h)));
+  const h0=words[0]?words[0].h:lh;
+  const gaps=words.slice(1).map((o,i)=>idx[i+1]===idx[i]?o.l-(words[i].l+words[i].w):null).filter(x=>x>0).sort((a,b)=>a-b);
+  const sp=gaps.length?gaps[gaps.length>>1]:lh*.35;
+  M={words,idx,tops,bots,sp,g:Math.max(2,(lh-h0)/2),W:page.clientWidth,H:page.scrollHeight};
+}
+function lineBox(L){ return {top:M.tops[L]-M.g, height:M.bots[L]-M.tops[L]+2*M.g}; }
+function lineStart(p){ const L=M.idx[p]; let i=p; while(i>0&&M.idx[i-1]===L) i--; return i; }
+function nextLineStart(p){ const L=M.idx[p]; let i=p; while(i<S.toks.length&&M.idx[i]===L) i++; return i; }
+
+function place(force){
+  if(!M) return;
+  const sl=$("slider"), lo=$("lower"), n=S.toks.length;
+  const key=[S.step,S.pos,S.k,S.mode,S.phase,S.tsize,S.spell,S.resweep,S.check,S.coverPic].join("|");
+  if(key===lastKey && !force) return;
+  lastKey=key; clearTimeout(pend);
+  renderHands();
+  $("stopChart").hidden=S.step!==3;
+  if(!n||S.pos>=n){
+    sl.style.transition="left .5s ease"; sl.style.left=M.W+"px";
+    lo.style.top=M.H+"px"; lastLine=-1; return;
+  }
+  const L=M.idx[S.pos], box=lineBox(L), W=M.words[S.pos];
+  lo.style.transition=force?"none":"top .35s ease";
+  lo.style.top=(box.top+box.height)+"px";
+  const newLine = L!==lastLine; lastLine=L;
+  const setTop=anim=>{ sl.style.top=box.top+"px"; sl.style.height=box.height+"px"; };
+  let from=null, to, dur="left .5s cubic-bezier(.45,0,.35,1)";
+  const nx=M.words[S.pos+1];
+  const wordEnd=Math.min(M.W,(nx && M.idx[S.pos+1]===L) ? nx.l : W.l+W.w+M.sp);
+  if(S.step===1 || (S.spell && S.phase==="read")){
+    to = S.k<=0 ? W.l : (S.k>=W.lt.length ? wordEnd : W.lt[S.k]);
+    if(S.spell && S.k<=0) dur="left .15s ease";
+  } else if(S.step===2&&S.mode==="line"){
+    to = M.W; dur="left .6s ease";
+  } else {
+    to = wordEnd;
+    const d=sweepDur()/1000, el=(performance.now()-S.sweepAt)/1000;
+    if(S.phase!=="ask" && el<d){ from = W.l + (to-W.l)*Math.max(0,el/d); dur=`left ${Math.max(.05,d-Math.max(0,el))}s linear`; }
+  }
+  if(force){ sl.style.transition="none"; setTop(); sl.style.left=to+"px"; return; }
+  const go=()=>{
+    if(from!==null){ sl.style.transition="none"; sl.style.left=from+"px"; void sl.offsetWidth; }
+    sl.style.transition=dur; sl.style.left=to+"px";
+  };
+  if(newLine){
+    const start=M.words[lineStart(S.pos)].l;
+    sl.style.transition="top .35s ease, height .35s ease, left .35s ease";
+    setTop(); sl.style.left=(S.step===2&&S.mode==="line"?start:Math.min(start,from??to))+"px";
+    if(from!==null){ S.sweepAt=performance.now()+350; from=M.words[S.pos].l; }
+    pend=setTimeout(go,360);
+  } else {
+    setTop();
+    const wait=S.sweepAt-performance.now();
+    if(from!==null && wait>0){ sl.style.transition="left .2s ease"; sl.style.left=W.l+"px"; pend=setTimeout(go,wait); }
+    else go();
+  }
+  keepInView(box.top);
+}
+function keepInView(top){
+  const rd=$("reader"), y=top+$("page").offsetTop;
+  if(y-rd.scrollTop>rd.clientHeight*.55 || y<rd.scrollTop+8) rd.scrollTo({top:Math.max(0,y-rd.clientHeight*.22),behavior:"smooth"});
+}
+function renderHands(){
+  const h=$("hands");
+  if(S.step!==3||S.phase!=="ask"||!M){ h.innerHTML=""; return; }
+  const rows={};
+  for(let i=S.chunkStart;i<=S.pos&&i<S.toks.length;i++){ const L=M.idx[i], o=M.words[i]; rows[L]=rows[L]?{a:rows[L].a,b:o.l+o.w}:{a:o.l,b:o.l+o.w}; }
+  let out=!S.coverPic?"":Object.entries(rows).map(([L,r])=>{ const b=lineBox(+L); return `<div class="hand" style="left:${r.a-6}px;width:${r.b-r.a+12}px;top:${b.top}px;height:${b.height}px"></div>`; }).join("");
+  if(S.check>=0){ const o=M.words[S.check], b=lineBox(M.idx[S.check]); out+=`<div class="peek" style="left:${o.l}px;top:${b.top+M.g*.5}px;height:${b.height-M.g}px">${esc(S.toks[S.check].w.replace(/[^\p{L}\p{N}'’-]/gu,""))}</div>`; }
+  h.innerHTML=out;
+}
+function updateMarks(){
+  WE.forEach((el,i)=>{ el.classList.toggle("told",S.toldHere.has(i)); el.classList.toggle("flagged",S.step===3&&S.manual.has(S.toks[i].key)); });
+}
+
+const cleanW=w=>w.replace(/[^\p{L}\p{N}'’-]/gu,"").replace(/^['’-]+|['’-]+$/g,"");
+const EASY=new Set("a an the and or but of to in on at by for with from is was are were be been it its he she they we you i me him her them his their our my your this that these those as so if not no do did has had have".split(" "));
+function renderChips(){
+  const c=$("chips");
+  if(!(S.step===3&&S.phase==="ask"&&S.chips)){ c.hidden=true; c.innerHTML=""; return; }
+  let h=`<div class="lbl">Which word is missing from the picture?${S.listen&&rec?" Dashed words weren't heard in the description.":""}</div>`;
+  for(let i=S.chunkStart;i<=S.pos&&i<S.toks.length;i++){
+    const w=cleanW(S.toks[i].w); if(!w) continue;
+    const k=S.toks[i].key, sugg=S.listen&&rec&&!EASY.has(k)&&k.length>1&&!S.desc.some(d=>sameWord(k,d));
+    h+=`<button data-cw="${i}" class="${sugg?"sugg":""}" aria-pressed="${S.check===i}">${esc(w)}</button>`;
+  }
+  c.innerHTML=h; c.hidden=false;
+}
+function sssNext(def){ return S.spell&&S.k<[...S.toks[S.pos].w].length ? "Reveal letter" : def; }
+function sssBack(){ return S.backs===0 ? "Sweep again" : S.backs===1 ? "Spell it" : "Back"; }
+function B(label,act,k,cls=""){ return `<button class="b ${cls}" data-act="${act}">${label}${k?`<span class="k">${k}</span>`:""}</button>`; }
+function renderControls(){
+  const n=S.toks.length, end=S.pos>=n; let h="", hint="";
+  const told=S.toldHere.has(S.pos);
+  if(!n){ h=B("Add text","text",""); }
+  else if(end){ hint="The end."; h=B("Read again","restart","","main"); }
+  else if(S.step===1){
+    h=B("Reveal letter","next","→","main")+B("Back","back","←")+B("Cover","cover","C");
+  } else if(S.step===2 && S.mode==="line"){
+    hint="Tap any word you had to say.";
+    h=B("Next line","next","→","main")+B("Back","back","←")+B("Cover","cover","C");
+  } else if(S.step===2){
+    h=B(sssNext("Next word"),"next","→","main")+B(told?"Said it ✓":(S.voice?"Say the word":"I said it"),"told","↑",told?"on":"")+B(sssBack(),"back","←")+B("Cover","cover","C");
+  } else if(S.phase==="ask"){
+    if(S.check>=0) hint=`Ask: <b>How is “${esc(cleanW(S.toks[S.check].w))}” in your picture?</b>`;
+    else hint = S.ask==="see" ? `Ask: <b>What do you see?</b>` : `Ask: <b>What do you feel?</b> or <b>What does that mean to you?</b>`;
+    h=B("Carry on","next","→","main")+B(S.ask==="see"?"Ask 'feel'":"Ask 'see'","ask","F")+B(S.check>=0?"Point out another word":"Point out a missing word","chips","W",S.chips?"on":"")+(S.coverPic?B("Show words","show",""):"");
+  } else {
+    if(S.toks[S.pos].stop) hint=S.coverPic?"STOP sign. When the word is read, → covers the words.":"STOP sign. When the word is read, press → and ask.";
+    h=B(sssNext(S.toks[S.pos].stop?(S.coverPic?"Cover and ask":"Stop and ask"):"Next word"),"next","→","main")+B(told?"Said it ✓":(S.voice?"Say the word":"I said it"),"told","↑",told?"on":"")+B(sssBack(),"back","←")+B("Cover","cover","C");
+  }
+  if(S.elapsed>=S.mins*60 && S.running) hint = hint || "Time is up. Finish at the next full stop.";
+  if(S.note) hint=esc(S.note);
+  $("btns").innerHTML=h; $("hint").innerHTML=hint;
+  renderChips();
+}
+
+function renderDrawer(){
+  $("modeSeg").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.mode===S.mode)));
+  $("revealField").hidden=S.step!==2;
+  $("coverField").hidden=S.step!==3;
+  $("coverSeg").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String((b.dataset.cov==="1")===S.coverPic)));
+  $("speedField").hidden=S.step===1;
+  $("mins").value=S.mins; $("minsOut").textContent=S.mins+" min";
+  $("swait").value=S.swait; $("swaitOut").textContent=S.swait.toFixed(1)+" s"; $("swaitField").hidden=S.step===1;
+  $("pace").value=S.pace; $("paceOut").textContent=S.pace.toFixed(1)+" s per letter"; $("paceField").hidden=S.step===1;
+  $("speed").value=S.speed; $("speedOut").textContent=S.speed.toFixed(2)+" s per letter";
+  const list=masteryList();
+  const names=[...new Set(S.toks.filter(t=>isProper(t.key)&&t.key!=="i").map(t=>t.w.replace(/[^\p{L}'’-]/gu,"")))];
+  $("wordList").innerHTML=(list.length?`<div class="words">${list.map(k=>`<span>${esc(k)}<button data-rm="${esc(k)}" aria-label="Remove ${esc(k)}">×</button></span>`).join("")}</div>`:`<div class="muted">No words yet.</div>`)
+    + (names.length?`<div class="muted" style="margin-top:8px;font-size:.85rem">Names in this text, not counted: ${esc(names.join(", "))}</div>`:"");
+  $("tsize").value=S.tsize; $("tsizeOut").textContent=S.tsize.toFixed(1);
+  $("lwin").value=S.lwin; $("lwinOut").textContent=S.lwin.toFixed(1)+" s";
+  $("vdelay").value=S.vdelay; $("vdelayOut").textContent=S.vdelay.toFixed(1)+" s";
+  $("dot").hidden=!list.length;
+}
+
+function renderLB(t){
+  $("lbTabs").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.t===t)));
+  let h;
+  if(t===0){
+    h=`<div>These three steps help a dyslexic reader move from guessing at whole words to reading left to right with certainty, and then to full understanding. Work through them in order; move on only when the student is ready.</div>
+    <div><h3>Before each session</h3><ul>${CHECKS.map(x=>`<li>${x}</li>`).join("")}<li>Remind the student: go slow and easy, check orientation, no sounding out.</li></ul></div>
+    <div><h3>Anywhere in the app</h3><ul><li>→: next (Space works too)</li><li>←: sweep again, or back</li><li>↑: say the word</li><li>C: cover the text (at any sign of disorientation, concentration, sounding out or an error)</li><li>V: voice on or off</li><li>L: listening on or off. With listening on, the app says a word only when it doesn't hear the reader say it within the wait time set in the settings, and counts it as a word you had to say. Listening needs the downloaded file opened in Chrome, Edge or Safari; it doesn't work inside the Claude app.</li><li>The bar at the top fills over the session length you set in Settings.</li></ul></div>
+    <div><h3>Symbol Mastery list</h3><div>Words you had to say ${TOLD_LIMIT} times are listed in Settings (the cog). Names are not counted, as they usually need more exposure. A small dot on the cog shows when the list has words.</div></div>`;
+  } else {
+    const g=GUIDE[t];
+    h=`<div><h3>Purpose</h3><ul>${PURPOSE[t].map(x=>`<li>${x}</li>`).join("")}</ul></div>
+    <div><h3>Say to the student</h3><div class="say">${g.say}</div></div>
+    <div><h3>Controls</h3><ul>${g.keys.map(x=>`<li>${x}</li>`).join("")}</ul></div>
+    <div><h3>Voice</h3><div>${VOICE_NOTE[t]}</div></div>
+    <div><h3>Watch for</h3><ul>${g.watch.map(x=>`<li>${x}</li>`).join("")}</ul></div>
+    <div><h3>Notes</h3><div>${g.next}</div></div>`;
+  }
+  $("lbBody").innerHTML=h;
+}
+function openLB(){ renderLB(S.step); $("lightbox").hidden=false; $("lbClose").focus(); }
+function closeLB(){ $("lightbox").hidden=true; }
+
+/* ---------- voice ---------- */
+let voiceTimer=null, voicePick=null;
+function pickVoice(){
+  let vs=[]; try{ vs=speechSynthesis.getVoices(); }catch(e){}
+  const en=vs.filter(v=>/^en/i.test(v.lang)); const list=en.length?en:vs;
+  list.sort((a,b)=>(/en-GB/i.test(b.lang)-/en-GB/i.test(a.lang))||a.name.localeCompare(b.name));
+  voicePick=list.find(v=>v.name===S.voiceName)||list.find(v=>/en-GB/i.test(v.lang))||list[0]||null;
+  const sel=document.getElementById("voiceSel"); if(!sel) return;
+  sel.innerHTML = list.length
+    ? list.map(v=>`<option value="${esc(v.name)}"${voicePick&&v.name===voicePick.name?" selected":""}>${esc(v.name.replace(/\s*\(.*\)$/,""))} · ${esc(v.lang)}</option>`).join("")
+    : `<option value="">No voices found on this device</option>`;
+  sel.disabled=!list.length;
+}
+function sayNow(text){ try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(text); if(voicePick) u.voice=voicePick; u.lang=voicePick?voicePick.lang:"en-GB"; u.rate=0.8; speechSynthesis.speak(u); }catch(e){} }
+try{ speechSynthesis.onvoiceschanged=pickVoice; }catch(e){}
+function cancelVoice(){ clearTimeout(voiceTimer); voiceTimer=null; clearPending(); clearAuto(); try{ speechSynthesis.cancel(); }catch(e){} }
+function speakLater(word,extra=0){
+  cancelVoice();
+  const clean=word.replace(/[^\p{L}\p{N}'’-]/gu,"").replace(/^['’-]+|['’-]+$/g,"");
+  if(!S.voice||!clean) return;
+  voiceTimer=setTimeout(()=>{
+    try{ const u=new SpeechSynthesisUtterance(clean); if(voicePick) u.voice=voicePick; u.lang=voicePick?voicePick.lang:"en-GB"; u.rate=0.8; speechSynthesis.speak(u); }catch(e){}
+  },S.vdelay*1000+extra);
+}
+const SPK='<path d="M11 5 6 9H3v6h3l5 4z"/>';
+const ICON_ON=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPK}<path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>`;
+const ICON_OFF=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPK}<path d="M16 9l5 6M21 9l-5 6"/></svg>`;
+function renderVoice(){ const b=$("voiceBtn"); b.setAttribute("aria-pressed",String(S.voice)); b.innerHTML=S.voice?ICON_ON:ICON_OFF; b.setAttribute("aria-label",S.voice?"Voice on":"Voice off"); b.title=(S.voice?"Voice on":"Voice off")+" (V)"; }
+
+function applyColour(){
+  document.documentElement.style.setProperty("--bg",S.colour);
+  $("swatches").innerHTML=COLOURS.map(([n,c])=>`<button style="background:${c}" data-c="${c}" aria-label="${n}" title="${n}" aria-pressed="${c===S.colour}"></button>`).join("");
+}
+function render(){
+  $("stepSel").value=String(S.step);
+  updateMarks(); place(false); renderControls(); renderDrawer();
+  $("cover").hidden=!S.covered;
+  renderVoice(); renderMic();
+}
+
+/* ---------- listening ---------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null, recState="off", heard=[], pending=null, pendTimer=null, noteTimer=null;
+const HOMO=[["to","too","two"],["there","their","theyre","they're"],["for","four","fore"],["one","won"],["no","know"],["new","knew"],["right","write"],["hear","here"],["see","sea"],["by","buy","bye"],["be","bee"],["i","eye"],["ate","eight"],["wood","would"],["red","read"],["blue","blew"],["son","sun"],["whole","hole"],["our","hour"],["its","it's"],["your","you're","youre"],["where","wear"],["which","witch"],["weather","whether"],["past","passed"],["a","uh"],["mia","maya","mea"]];
+const norm=t=>t.toLowerCase().replace(/[^\p{L}\p{N}'\s-]/gu," ").split(/[\s-]+/).filter(Boolean);
+function lev(a,b){ const d=[...Array(b.length+1).keys()]; for(let i=1;i<=a.length;i++){ let p=d[0]; d[0]=i; for(let j=1;j<=b.length;j++){ const t=d[j]; d[j]=Math.min(d[j]+1,d[j-1]+1,p+(a[i-1]===b[j-1]?0:1)); p=t; } } return d[b.length]; }
+function sameWord(target,h){
+  if(!target||!h) return false;
+  const t=target.replace(/['’]/g,""), w=h.replace(/['’]/g,"");
+  if(t===w) return true;
+  if(HOMO.some(g=>g.map(x=>x.replace(/'/g,"")).includes(t)&&g.map(x=>x.replace(/'/g,"")).includes(w))) return true;
+  if(t.length>=5 && lev(t,w)<=1) return true;
+  return false;
+}
+function note(msg){ clearTimeout(noteTimer); S.note=msg; renderControls(); noteTimer=setTimeout(()=>{ S.note=""; renderControls(); },4000); }
+function startRec(){
+  if(!SR){ recState="unsupported"; return; }
+  if(rec) return;
+  rec=new SR(); rec.lang=(voicePick&&/^en/i.test(voicePick.lang))?voicePick.lang:"en-GB";
+  rec.continuous=true; rec.interimResults=true; rec.maxAlternatives=3;
+  rec.onresult=e=>{
+    const now=performance.now();
+    for(let i=e.resultIndex;i<e.results.length;i++){ const res=e.results[i]; for(let a=0;a<res.length;a++) heard.push({t:now,words:norm(res[a].transcript).slice(-3)}); }
+    heard=heard.filter(h=>now-h.t<6000); checkPending();
+    if(S.phase==="ask"){ for(let i=e.resultIndex;i<e.results.length;i++){ if(e.results[i].isFinal) S.desc.push(...norm(e.results[i][0].transcript)); } if(S.chips) renderChips(); }
+  };
+  rec.onerror=e=>{
+    if(e.error==="not-allowed"||e.error==="service-not-allowed"||e.error==="audio-capture"){ recState="blocked"; S.listen=false; saveStore(); stopRec(); renderMic(); note("The microphone isn't available here. Open the downloaded file in Chrome, Edge or Safari and allow the microphone."); }
+  };
+  rec.onend=()=>{ if(rec&&S.listen&&recState!=="blocked"){ try{ rec.start(); }catch(err){} } };
+  try{ rec.start(); recState="on"; }catch(err){ recState="blocked"; }
+}
+function stopRec(){ if(!rec) return; const r=rec; rec=null; try{ r.onend=null; r.abort(); }catch(e){} if(recState==="on") recState="off"; }
+function clearPending(){ clearTimeout(pendTimer); pendTimer=null; pending=null; }
+function expectWord(i,fromMs,endMs,opts={}){
+  clearPending();
+  if(!S.listen||!rec) return false;
+  const target=(norm(S.toks[i].w)[0]||"");
+  if(!target) return false;
+  pending={i,target,from:fromMs-250,onMiss:opts.onMiss};
+  pendTimer=setTimeout(missed,Math.max(0,endMs+(opts.wait??S.lwin*1000)-performance.now()));
+  checkPending(); return true;
+}
+function checkPending(){
+  if(!pending) return;
+  if(heard.some(h=>h.t>=pending.from && h.words.some(w=>sameWord(pending.target,w)))){ clearPending(); }
+}
+/* automatic spelling after the second sweep */
+let autoTimer=null;
+function clearAuto(){ clearTimeout(autoTimer); autoTimer=null; }
+function startAutoSpell(){
+  if(S.covered||S.phase!=="read"||S.pos>=S.toks.length) return;
+  S.backs=2; S.spell=true; S.k=0; render();
+  autoTimer=setTimeout(autoStep,160);
+}
+function autoStep(){
+  autoTimer=null;
+  if(!S.spell||S.phase!=="read"||S.covered) return;
+  const len=[...S.toks[S.pos].w].length;
+  if(S.k>=len) return;
+  S.k++; render();
+  if(S.k===len) spelled(); else autoTimer=setTimeout(autoStep,S.pace*1000);
+}
+function sweepDur(){ return letters(S.toks[S.pos].w)*S.speed*1000*(S.backs===1?1.2:1); }
+function autoSecondSweep(){
+  if(S.covered||S.backs!==0||S.spell||S.phase!=="read"||S.pos>=S.toks.length) return;
+  S.backs=1; S.resweep++; S.sweepAt=performance.now()+500; render(); scheduleSecondSweep();
+}
+function scheduleSecondSweep(){
+  const d=sweepDur(), end=S.sweepAt+d;
+  if(S.listen&&rec&&expectWord(S.pos,S.sweepAt,end,{wait:S.swait*1000,onMiss:startAutoSpell})) return;
+  autoTimer=setTimeout(startAutoSpell,Math.max(0,end+S.swait*1000-performance.now()));
+}
+function missed(){
+  if(!pending) return; const i=pending.i, cb=pending.onMiss; clearPending();
+  if(cb){ cb(); return; }
+  if(S.voice) sayNow(S.toks[i].w.replace(/[^\p{L}\p{N}'’-]/gu,""));
+  if(S.step>1 && !S.toldHere.has(i)){ toggleTold(i); updateMarks(); renderControls(); renderDrawer(); }
+}
+function armSweep(){
+  if(!S.listen||S.step===1||(S.step===2&&S.mode==="line")||S.phase!=="read"||S.pos>=S.toks.length) return;
+  expectWord(S.pos,S.sweepAt,S.sweepAt+sweepDur(),{wait:1000,onMiss:autoSecondSweep});
+}
+const MIC_ON=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>`;
+const MIC_OFF=`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M4 4l16 16"/></svg>`;
+function renderMic(){ const b=$("micBtn"); b.innerHTML=S.listen?MIC_ON:MIC_OFF; b.setAttribute("aria-pressed",String(S.listen)); b.setAttribute("aria-label",S.listen?"Listening on":"Listening off"); b.title=(S.listen?"Listening on":"Listening off")+" (L)"; }
+function toggleListen(){
+  if(!SR){ note("Listening isn't supported in this browser. Try Chrome, Edge or Safari."); return; }
+  S.listen=!S.listen; saveStore();
+  if(S.listen){ recState="off"; startRec(); if(recState==="on") note("Listening. The word is said only if the reader doesn't say it."); }
+  else { stopRec(); clearPending(); }
+  renderMic();
+}
+
+/* ---------- actions ---------- */
+function advanceWord(){ cancelVoice(); S.pos++; S.sweepAt=performance.now(); S.spell=false; S.k=0; S.backs=0; }
+function spelled(){
+  const now=performance.now(), i=S.pos;
+  if(expectWord(i,now,now+500)) return;
+  if(S.voice){ speakLater(S.toks[i].w,500); if(!S.toldHere.has(i)) toggleTold(i); }
+}
+function act(a,arg){
+  const n=S.toks.length, end=S.pos>=n;
+  if(S.covered && a!=="cover") return;
+  switch(a){
+    case "next":
+      if(end) return;
+      clearPending();
+      if(S.step===1){
+        let len=[...S.toks[S.pos].w].length;
+        if(S.k>=len){ cancelVoice(); S.pos++; S.k=0; if(S.pos>=n) break; len=[...S.toks[S.pos].w].length; }
+        S.k++; if(S.k===len){ const now=performance.now(); if(!expectWord(S.pos,now,now+500)) speakLater(S.toks[S.pos].w,500); }
+      }
+      else if(S.step===2&&S.mode==="line"){ S.pos=nextLineStart(S.pos); }
+      else if(S.spell && S.phase==="read" && S.k<[...S.toks[S.pos].w].length){ const wasAuto=!!autoTimer; clearAuto(); S.k++; if(S.k===[...S.toks[S.pos].w].length) spelled(); else if(wasAuto) autoTimer=setTimeout(autoStep,S.pace*1000); }
+      else if(S.step===2) advanceWord();
+      else if(S.phase==="ask"){ advanceWord(); S.chunkStart=S.pos; S.phase="read"; S.ask="see"; S.check=-1; S.chips=false; }
+      else if(S.toks[S.pos].stop||S.pos+1>=n){ S.phase="ask"; S.spell=false; S.check=-1; S.chips=false; S.desc=[]; }
+      else advanceWord();
+      break;
+    case "back": cancelVoice();
+      if(S.step===1){ if(S.k>1||(S.k===1&&S.pos===0)) S.k--; else if(S.pos>0){ S.pos--; S.k=[...S.toks[S.pos].w].length; } }
+      else if(S.step===2&&S.mode==="line"){ const cur=S.pos>=n?n:lineStart(S.pos); if(cur>0) S.pos=lineStart(cur-1); }
+      else if(S.phase==="read"&&!end){
+        if(S.backs===0){ S.backs=1; S.resweep++; S.sweepAt=performance.now()+500; }
+        else if(S.backs===1){ S.backs=2; S.spell=true; S.k=0; }
+        else if(S.spell&&S.k>0){ S.k--; }
+        else if(S.pos>(S.step===3?S.chunkStart:0)){ S.pos--; S.sweepAt=0; S.spell=false; S.k=0; S.backs=0; }
+      }
+      break;
+    case "told": if(S.step>1&&!end){ const was=S.toldHere.has(S.pos); toggleTold(S.pos); if(!was) speakLater(S.toks[S.pos].w); else cancelVoice(); } break;
+    case "voice": S.voice=!S.voice; if(!S.voice) cancelVoice(); saveStore(); break;
+    case "tap":
+      if(S.step===2&&S.mode==="line"){ const was=S.toldHere.has(arg); toggleTold(arg); if(!was) speakLater(S.toks[arg].w); }
+      else if(S.step===3&&S.phase!=="ask"){ const k=S.toks[arg].key; if(!k) return; S.manual.has(k)?S.manual.delete(k):S.manual.add(k); S.hiddenWords.delete(k); saveStore(); }
+      else return;
+      break;
+    case "ask": if(S.phase==="ask") S.ask=S.ask==="see"?"feel":"see"; break;
+    case "show": if(S.phase==="ask"){ S.phase="read"; S.sweepAt=0; S.check=-1; S.chips=false; } break;
+    case "chips": if(S.phase==="ask") S.chips=!S.chips; break;
+    case "checkw":
+      if(S.phase!=="ask") return;
+      if(S.check===arg){ S.check=-1; }
+      else { S.check=arg; S.chips=false; if(S.voice) sayNow(`How is ${cleanW(S.toks[arg].w)} in your picture?`); }
+      break;
+    case "cover": S.covered=!S.covered; if(S.covered) cancelVoice(); break;
+    case "restart": reset(); openStart(); break;
+    case "text": openText(); return;
+    default: return;
+  }
+  render();
+  if(a==="next"&&!S.spell) armSweep();
+  if(a==="back"&&S.backs===1&&!S.spell) scheduleSecondSweep();
+}
+
+/* ---------- session progress ---------- */
+function frame(now){
+  if(S.running && !S.covered && document.visibilityState==="visible"){
+    S.elapsed+=Math.min(1,(now-S.lastTick)/1000);
+  }
+  S.lastTick=now;
+  const pct=Math.min(100,S.elapsed/(S.mins*60)*100);
+  $("fill").style.width=pct+"%"; $("bar").setAttribute("aria-valuenow",Math.round(pct));
+  const done=pct>=100; if($("bar").classList.contains("done")!==done){ $("bar").classList.toggle("done",done); renderControls(); }
+  requestAnimationFrame(frame);
+}
+function startSession(){ $("startOverlay").hidden=true; S.running=true; S.elapsed=0; S.sweepAt=performance.now(); lastKey=""; render(); if(S.listen){ startRec(); armSweep(); } }
+function openStart(){ S.running=false; $("startOverlay").hidden=false; $("startGo").focus(); }
+function openText(){ closeDrawer(); $("textInput").value=S.raw; $("textOverlay").hidden=false; $("textInput").focus(); }
+function openDrawer(){ renderDrawer(); $("drawer").hidden=false; $("shade").hidden=false; $("helperBtn").setAttribute("aria-expanded","true"); $("closeDrawer").focus(); }
+function closeDrawer(){ $("drawer").hidden=true; $("shade").hidden=true; $("helperBtn").setAttribute("aria-expanded","false"); }
+
+$("chips").addEventListener("click",e=>{ const b=e.target.closest("[data-cw]"); if(b) act("checkw",+b.dataset.cw); });
+$("btns").addEventListener("click",e=>{ const b=e.target.closest("[data-act]"); if(b) act(b.dataset.act); });
+$("passage").addEventListener("click",e=>{ const w=e.target.closest(".w[data-i]"); if(w) act("tap",+w.dataset.i); });
+$("helperBtn").onclick=openDrawer; $("closeDrawer").onclick=closeDrawer; $("shade").onclick=closeDrawer;
+$("stepSel").addEventListener("change",e=>{ S.step=+e.target.value; e.target.blur(); cancelVoice(); reset(); saveStore(); closeDrawer(); render(); openStart(); });
+$("modeSeg").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b) return; S.mode=b.dataset.mode; if(S.pos<S.toks.length&&S.mode==="line") S.pos=lineStart(S.pos); S.sweepAt=performance.now(); saveStore(); render(); });
+$("mins").oninput=e=>{ S.mins=+e.target.value; saveStore(); renderDrawer(); };
+$("swait").oninput=e=>{ S.swait=+e.target.value; saveStore(); renderDrawer(); };
+$("pace").oninput=e=>{ S.pace=+e.target.value; saveStore(); renderDrawer(); };
+$("speed").oninput=e=>{ S.speed=+e.target.value; saveStore(); renderDrawer(); };
+$("changeText").onclick=openText;
+$("coverSeg").addEventListener("click",e=>{ const b=e.target.closest("[data-cov]"); if(!b) return; S.coverPic=b.dataset.cov==="1"; saveStore(); render(); });
+pickVoice(); setTimeout(pickVoice,500);
+$("voiceSel").onchange=e=>{ S.voiceName=e.target.value; saveStore(); pickVoice(); sayNow("river"); };
+$("voiceTest").onclick=()=>sayNow("Mia walked down to the river.");
+$("uncover").onclick=()=>act("cover");
+$("tsize").oninput=e=>{ S.tsize=+e.target.value; saveStore(); renderDrawer(); measure(); place(true); };
+let rz; window.addEventListener("resize",()=>{ clearTimeout(rz); rz=setTimeout(()=>{ measure(); place(true); },120); });
+try{ document.fonts.ready.then(()=>{ measure(); place(true); }); }catch(e){}
+$("swatches").addEventListener("click",e=>{ const b=e.target.closest("[data-c]"); if(!b) return; S.colour=b.dataset.c; saveStore(); applyColour(); });
+$("voiceBtn").onclick=()=>act("voice");
+$("micBtn").onclick=toggleListen;
+$("lwin").oninput=e=>{ S.lwin=+e.target.value; saveStore(); renderDrawer(); };
+$("infoBtn").onclick=openLB; $("lbClose").onclick=closeLB;
+$("lightbox").addEventListener("click",e=>{ if(e.target.id==="lightbox") closeLB(); });
+$("lbTabs").addEventListener("click",e=>{ const b=e.target.closest("button"); if(b) renderLB(+b.dataset.t); });
+$("vdelay").oninput=e=>{ S.vdelay=+e.target.value; saveStore(); renderDrawer(); };
+$("wordList").addEventListener("click",e=>{ const b=e.target.closest("[data-rm]"); if(!b) return; const k=b.dataset.rm; S.manual.delete(k); S.hiddenWords.add(k); saveStore(); render(); });
+$("startGo").onclick=startSession;
+$("textCancel").onclick=()=>{ $("textOverlay").hidden=true; };
+$("textSample").onclick=()=>{ $("textInput").value=SAMPLE; };
+$("textUse").onclick=()=>{ const v=$("textInput").value.trim(); if(!v){ $("textInput").focus(); return; } load(v); $("textOverlay").hidden=true; render(); openStart(); };
+
+document.addEventListener("keydown",e=>{
+  if(/TEXTAREA|INPUT|SELECT/.test(e.target.tagName)) return;
+  if(!$("startOverlay").hidden){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); startSession(); } return; }
+  if(!$("textOverlay").hidden){ if(e.key==="Escape") $("textOverlay").hidden=true; return; }
+  if(!$("lightbox").hidden){ if(e.key==="Escape") closeLB(); return; }
+  if(!$("drawer").hidden){ if(e.key==="Escape") closeDrawer(); return; }
+  const k=e.key;
+  if(k===" "||k==="ArrowRight"){ e.preventDefault(); act("next"); }
+  else if(k==="ArrowLeft"){ e.preventDefault(); act("back"); }
+  else if(k==="ArrowUp"){ e.preventDefault(); if(S.step===1){ if(S.pos<S.toks.length) sayNow(S.toks[S.pos].w.replace(/[^\p{L}\p{N}'’-]/gu,"")); } else act("told"); }
+  else if(k==="c"||k==="C"){ act("cover"); }
+  else if(k==="f"||k==="F"){ act("ask"); }
+  else if(k==="w"||k==="W"){ act("chips"); }
+  else if(k==="v"||k==="V"){ act("voice"); }
+  else if(k==="l"||k==="L"){ toggleListen(); }
+  else if(k==="i"||k==="I"){ openLB(); }
+  else if(k==="Escape"&&S.covered){ act("cover"); }
+});
+
+load(S.raw);
+applyColour();
+render();
+openStart();
+requestAnimationFrame(t=>{ S.lastTick=t; frame(t); });
+</script>
+
+</body>
+</html>
